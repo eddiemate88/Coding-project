@@ -117,8 +117,8 @@ summary(model.MOV.Population)
 #Use forward selection to refine the linear model
 
 #For the forward selection method, we will start from the base case, which is the response covariate only test against one explanatory covariate (simple linear regression). 
-#And we will consider the p value of the ß and it associated p value. And we will choose the covariate regression coefficient with the lowest p value. 
-#Then we will continue the progress for 2 covariates and more until there is the ß of the coefficient is insignificant. The method can be obtained from lecture note. 
+#And we will consider the p value of the ÃŸ and it associated p value. And we will choose the covariate regression coefficient with the lowest p value. 
+#Then we will continue the progress for 2 covariates and more until there is the ÃŸ of the coefficient is insignificant. The method can be obtained from lecture note. 
 #This method can be pefromed manually on R or we can use the package olsrr which is a linear model, covariate selection algorithm package that will perform forward selection algorithm automatically. 
 #And for this investigation we will the latter method using the statsictical package olsrr, because of the limited page limit for this assignment. 
 #And using the olsrr package require less coding and generate a comprehensive detail to report the forwards step selection and their p-value. 
