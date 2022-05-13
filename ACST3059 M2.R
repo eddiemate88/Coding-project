@@ -1,0 +1,184 @@
+setwd("C:/Users/hlmed/Desktop/ACST3059Assignment/ACST3059R")
+install.packages("StMoMo")
+yes
+library("StMoMo")
+?StMoMo
+
+JAPdata<-read.table("mltper_1x1.txt", header = TRUE)
+
+data
+head(data)
+
+StMoMo(link = c("log", "logit"), staticAgeFun = TRUE, periodAgeFun = "NP", cohortAgeFun = NULL, 
+       constFun = function(ax, bx, kt, b0x, gc, wxt, ages) list(ax=ax, bx=bx, kt=kt, b0x=b0x, gc=gc))
+
+#To define the link function and the random component in relation to the mortality model we will use the argument link. By setting link = "log" this assumes the deaths would follow a Poisson Distribution and uses the log link to target the force of mortality µx+t, and setting link = "logit" will allow the deaths assumption follow a Binomial distribution and uses a logit link will target one-year death probabilities qxt.
+#The predictor of the model defined by the argument staticAgeFun, periodAgeFun and cohortAgeFun. Function staticAgeFun is a logical variable showing the if the model has a static age function ?? or not. And argument periodAgeFun is a list of length N including the definitions of the period age-modulating perameter ßx(i), where i = 1,.N . And argument cohortAgeFun  is the cohort age modulating parameter ßx(0), by letting this argument equals "1" or "NULL" to identify if the model have a cohort effect. 
+#We also required to set parameters constraint due to the realisation of identification problem, the set of parameter constraints are defined using the argument constFun which will be implemented by the users, users will set the constraint to satisfy the model.
+
+
+#Lee-Carter model
+
+constLC<-function(ax, bx, kt, b0x, gc, wxt, ages){
+  c1 <- mean(kt[1, ], na.rm = TRUE)
+  c2 <- sum(bx[, 1], na.rm = TRUE)
+  list(ax = ax + c1 * bx, bx = bx / c2, kt = c2 * (kt - c1))
+}
+
+LC <- StMoMo(link = "logit", staticAgeFun = TRUE, periodAgeFun = "NP", constFun = constLC)
+
+#LC data fitting
+
+
+library(demography)
+JPNdata <- hmd.mx(country = "JPN", username = "hlmed429@gmail.com", password = "1599740255") 
+
+plot(JPNdata, series ="male")
+
+JPNmale <- StMoMoData(JPNdata, series = "male")
+ages.fit <- 1:109
+years.fit <- 1947:2018
+
+wxt <- genWeightMat(ages = ages.fit, years = years.fit, clip = 6)
+
+LCfit <- fit(lc(), data = JPNmale, ages.fit = ages.fit, years.fit = years.fit, wxt = wxt)
+
+plot(LCfit)
+
+#After we defined the model we will start the process of model fitting, StMoMo provides the common function fit for estimating the parameters of GAPC mortality models. 
+#And the function fit expect user to provide "StMoMoData" containing deaths and exposures in a matrix format. And using the demography package we can extract data straight from the Human Mortality Database. 
+#Therefore extracting Japanese male mortiality data can be done using these codes
+
+#Exposure by cohort
+
+JPNmale$Ext["65", ]
+
+plot(years.fit, JPNmale$Ext["60", ], title(main = ))
+
+life.e
+
+#RH model
+RH <- rh(link = "logit", cohortAgeFun = "1")
+
+#However there is some issues for constructing the RH model using R, this is due to the fact that the fitting of RH model is the cohort extensions of the LC model, therefore there will be same problem carried over to the RH model. 
+#Therefore we need to use an appropriate starting values when fitting RH model to circumvent the convergence issue. And this can be achieved by using the fit function with input start.ax, start.bx, start.kx, start.b0x, and start.gc. 
+#Which means we need to establish the LC model and fit the LC data first before we continue the RH model. 
+
+#And now we can extablish our RH model fitting process, as we mentioned, in order to have an accurate model fitting we required to manually set the starting value using the LC model's values. 
+#And the following commands are used to generate the RH model fitting:
+
+#RH fitting
+
+RHfit <- fit(rh(), data = JPNmale, ages.fit = ages.fit, years.fit = years.fit, wxt = wxt,
+             start.ax = LCfit$ax, start.bx = LCfit$bx, start.kt = LCfit$kt)
+
+plot(RHfit)
+
+RHfit
+
+
+#RH forecasting
+
+#In the package StMoMo, generic function forecast is used to forecast GAPC stochastic mortality model. This function estimates the multivariable random walk with drift and use Arima function in the package forecast. 
+#Therefore, for RH model, if we assume that the period index follow a multivariable random walk with drift which is already set in StMoMo package, and the cohort index.  
+#Then the RH model must follow the ARIMA processes with h = 100 (part of the coding for forecasting the RH parameters) which is 100 years ahead, with central projections of period index and cohort index. 
+#And we can forecast the RH model parameters using the following code
+
+RHfor <- forecast(RHfit, h = 70, gc.order = c(1,1,0))
+
+plot(RHfor, only.kt = TRUE)
+plot(RHfor, only.gc = TRUE)
+
+list(RHfor)
+
+summary(RHfor)
+fitted.values(RHfor)
+
+#Residual plot
+
+RHres <- residuals(RHfit)
+
+plot(RHres, type = "colourmap", reslim = c(-3.5, 3.5))
+
+plot(RHres, type = "signplot", reslim = c(-3.5, 3.5))
+
+plot(RHres, type = "scatter", reslim = c(-3.5, 3.5))
+
+#RH simulation
+
+set.seed(1234)
+
+nsim <- 1000
+RHsim <- simulate(RHfit, nsim = nsim, h = 100, gc.order = c(1, 1, 0))
+
+plot(RHfit$years, RHfit$kt[1, ], xlim = c(1970, 2060), 
+     ylim = range(RHfit$kt, RHsim$kt.s$sim[1, , 1:20]), type = "l", xlab = "years", 
+     ylab = "kt", main = "Period Index")
+matlines(RHsim$kt.s$years, RHsim$kt.s$sim[1, , 1:20], type = "l", lty = 1)
+
+plot(RHfit$cohorts, RHfit$gc, xlim = c(1970, 2060),
+     ylim = range(RHfit$gc, RHsim$gc.s$sim[, 1:20], na.rm = TRUE), type = "l", xlab = "years",
+     ylab = "kt", main = "Cohort Index")
+matlines(RHsim$gc.s$cohorts, RHsim$gc.s$sim[, 1:20], type = "l", lty = 1)
+
+
+library(fanplot)
+
+
+probs <- c(2.5, 10, 25, 50, 75, 90, 97.5)
+
+qxt <- RHfit$Dxt/RHfit$Ext
+
+matplot(RHfit$years, t(qxt[c("65", "75", "85"), ]), xlim = c(1970, 2060), 
+        ylim = c(0.0025, 0.2), pch = 20, col = "black", log = "y", 
+        xlab = "year", ylab = "mortality rate")
+fan(t(RHsim$rates["65", , ]), start = 2018, probs = probs, n.fan = 4, 
+    fan.col = colorRampPalette(c("black", "white")), ln = NULL)
+fan(t(RHsim$rates["75", , ]), start = 2018, probs = probs, n.fan = 4, 
+    fan.col = colorRampPalette(c("red", "white")), ln = NULL)
+fan(t(RHsim$rates["85", , ]), start = 2018, probs = probs, n.fan = 4, 
+    fan.col = colorRampPalette(c("blue", "white")), ln = NULL)
+text("1990", qxt[c("65", "75", "85"), "2015"], 
+     labels = c("x = 65", "x = 75", "x = 85"))
+
+#Annuity
+
+install.packages("lifecontingencies")
+library(lifecontingencies)
+
+rates <- cbind(JPNdata$rate$male[1:90, ], RHfor$rates[1:90, ])
+
+createActuarialTable <- function(yearOfBirth, rate){
+  mxcoh <- rate[1:nrow(rate),(yearOfBirth-min(JPNmale$year)+1):ncol(rate)]
+  cohort.mx <- diag(mxcoh)
+  cohort.px=exp(-cohort.mx)
+#get projected Px
+  fittedPx=cohort.px #add px to table
+  px4Completion=seq(from=cohort.px[length(fittedPx)], to=0, length=60)
+  totalPx=c(fittedPx,px4Completion[2:length(px4Completion)])
+#create life table
+  irate=0.04
+  
+  cohortLt=probs2lifetable(probs=totalPx, radix=100000,type="px",
+                            name=paste("Cohort",yearOfBirth))
+  cohortAct = new("actuarialtable",x=cohortLt@x, lx=cohortLt@lx,
+                interest=irate, name=cohortLt@name)
+  return(cohortAct)
+
+}
+
+getAnnuityAPV<-function(yearOfBirth,rate) {
+   actuarialTable<-createActuarialTable(yearOfBirth,rate)
+   out=axn(actuarialTable, x=65, m=1)
+   return(out)
+}
+
+rate <- rates
+
+for(i in seq(1980, 2030,by=10)) {
+  cat("For cohort ",i, "of males the e0 is",
+      round(exn(createActuarialTable(i,rate),2)),
+      "and the APV is :", round(getAnnuityAPV(i,rate),2),"\n")
+}
+
+
